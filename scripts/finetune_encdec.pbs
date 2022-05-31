@@ -1,0 +1,150 @@
+#!/bin/bash
+#$ -l rt_AF=1
+#$ -l h_rt=72:00:00
+#$ -j y
+
+WORK_DIR=/groups/1/gca50126/aca10479lc/work/readmegen
+OUT_DIR=${WORK_DIR}/work/long-t5-tglobal-base
+DATA_DIR=${WORK_DIR}/work/data
+ENTRYPOINT_MODEL_DIR=${WORK_DIR}/work/entrypoint_extractor.json
+
+export PYENV_VIRTUALENV_DISABLE_PROMPT=1;
+export PYENV_ROOT="$HOME/.pyenv";
+export PATH="$PYENV_ROOT/bin:$PATH";
+export PYENV_ROOT="$HOME/.pyenv";
+eval "$(pyenv init -)";
+eval "$(pyenv virtualenv-init -)";
+
+source /etc/profile.d/modules.sh
+module load cuda/11.6/11.6.2 cudnn/8.3/8.3.3 nccl/2.12/2.12.12-1 gcc/11.2.0
+
+pyenv activate readmegen-ag
+
+# Do not use set -eu as PyArrow seems to raise error upon shutdown
+set -u
+
+cd $WORK_DIR
+
+mkdir -p ${OUT_DIR}
+mkdir -p ${SGE_LOCALDIR}/data
+
+rsync -ar ${DATA_DIR}/ ${SGE_LOCALDIR}/data/
+
+export PYTHONPATH=`pwd`
+
+echo '\n\n\n**************************************************************'
+echo '*** Running finetune_encdec.py'
+echo '**************************************************************\n'
+
+
+# LongT5 paper discloses little about fine-tuning hyperparameters, so we follow
+# T5 setup
+# T5 had virtual batch size of 128, but we use virtual batch size of 48 and
+# reduce learning rate from 0.001 to 0.0005
+# We also reduce max steps from 262144 to 50000 as it seems to be overfitting
+python -m torch.distributed.launch \
+    --master_port 1234 \
+    --nproc_per_node 8 \
+    --nnodes 1 \
+    scripts/finetune_encdec.py \
+    --model_name_or_path google/long-t5-tglobal-base \
+    --do_train \
+    --do_eval \
+    --train_file=${SGE_LOCALDIR}/data/train.jsonl \
+    --validation_file=${SGE_LOCALDIR}/data/dev.jsonl \
+    --evaluation_strategy=steps \
+    --eval_steps 2000 \
+    --predict_with_generate=True \
+    --generation_max_length=910 \
+    --max_eval_samples=500 \
+    --load_best_model_at_end=True \
+    --metric_for_best_model=bleus \
+    --greater_is_better=True \
+    --save_total_limit=1 \
+    --per_device_train_batch_size=3 \
+    --per_device_eval_batch_size=6 \
+    --gradient_accumulation_steps=2 \
+    --weight_decay=0.01 \
+    --max_grad_norm=0.1 \
+    --optim adafactor \
+    --lr_scheduler_type=cosine \
+    --warmup_steps=1000 \
+    --save_strategy=steps \
+    --save_steps=2000 \
+    --max_steps=20000 \
+    --learning_rate 0.0005 \
+    --max_source_length 3000 \
+    --max_target_length 910 \
+    --seed=42 \
+    --log_on_each_node=False \
+    --logging_first_step=True \
+    --logging_steps=100 \
+    --output_dir=${OUT_DIR} \
+    --overwrite_output_dir \
+    --disable_tqdm=True \
+    --ddp_find_unused_parameters=False \
+    --bf16=True \
+    --tf32=True \
+    --entrypoint_model ${ENTRYPOINT_MODEL_DIR}
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_perplexity.py on dev.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_perplexity.py \
+    -i ${SGE_LOCALDIR}/data/dev.jsonl \
+    --encoder-decoder-path ${OUT_DIR} \
+    -n 910 \
+    --max-context-length 3000 \
+    -o ${OUT_DIR}/perplexity_dev.json \
+    --entrypoint-model ${ENTRYPOINT_MODEL_DIR}
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_perplexity.py on test_1500.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_perplexity.py \
+    -i ${SGE_LOCALDIR}/data/test_1500.jsonl \
+    --encoder-decoder-path ${OUT_DIR} \
+    -n 910 \
+    --max-context-length 3000 \
+    -o ${OUT_DIR}/perplexity_test_1500.json \
+    --entrypoint-model ${ENTRYPOINT_MODEL_DIR}
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_generation.py predict on dev.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_generation.py \
+    predict \
+    -i ${SGE_LOCALDIR}/data/dev.jsonl \
+    --encoder-decoder-path ${OUT_DIR} \
+    --max-context-length 3000 \
+    --max-generation-length 910 \
+    -o ${OUT_DIR}/results_dev.jsonl \
+    --entrypoint-model ${ENTRYPOINT_MODEL_DIR}
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_generation.py predict on test_1500.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_generation.py \
+    predict \
+    -i ${SGE_LOCALDIR}/data/test_1500.jsonl \
+    --encoder-decoder-path ${OUT_DIR} \
+    --max-context-length 3000 \
+    --max-generation-length 910 \
+    -o ${OUT_DIR}/results_test_1500.jsonl \
+    --entrypoint-model ${ENTRYPOINT_MODEL_DIR}
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_generation.py evaluate on results_dev.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_generation.py \
+    evaluate \
+    -i ${OUT_DIR}/results_dev.jsonl \
+    -o ${OUT_DIR}/metrics_dev.jsonl
+
+echo '\n\n\n**************************************************************'
+echo "*** Run evaluate_generation.py evaluate on results_test_1500.jsonl"
+echo '**************************************************************\n'
+python scripts/evaluate_generation.py \
+    evaluate \
+    -i ${OUT_DIR}/results_test_1500.jsonl \
+    -o ${OUT_DIR}/metrics_test_1500.jsonl
