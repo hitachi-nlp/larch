@@ -23,7 +23,7 @@ available_models = set()
 _context_creator = None
 
 # FIXME: Stop hardcoding this
-_MAX_GENERATION_LENGTH = 200
+_MAX_GENERATION_LENGTH = 512
 # context creators may return more tokens than specified due to the nature
 # of subword tokenization. We specify slack to prevent an error.
 _SLACK_LENGTH = 4
