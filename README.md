@@ -115,6 +115,7 @@ You can train your own Encoder-Decoder Model with [scripts/finetune_encdec.py](s
 # We do custom torch installation to enble GPU
 pip install torch==1.13.0+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
 pip install -r <(cat requirements.txt | grep -v torch)
+pip install -r requirements-dev.txt
 
 export PYTHONPATH=`pwd`
 
