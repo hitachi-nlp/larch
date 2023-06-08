@@ -8,7 +8,7 @@ except IOError:
     readme = ''
 
 
-name = 'larch'
+name = 'larch-readme'
 exec(open('larch/_version.py').read())
 release = __version__
 version = '.'.join(release.split('.')[:2])
