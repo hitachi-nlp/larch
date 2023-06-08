@@ -53,6 +53,8 @@ LOADED_MODELS='gpt2,gpt2-xl' ENCODER_DECODER_MODEL_PATHS='{"my-encdec": "./path-
 LOADED_MODELS='' ENCODER_DECODER_MODEL_PATHS='{"my-encdec": "./path-to-model/"}' larch-server
 ```
 
+You can download VSCode plugin to interact with the server from: `Coming soon!`
+
 ## Usage with Docker
 
 Build docker image (you need to set up proxy settings appriopriately if you are behind a proxy server).
