@@ -93,7 +93,7 @@ export PYTHONPATH=`pwd`
 python larch/cli.py --local --model gpt2
 
 # start debug server
-python larch/server.py --reload --debug
+python larch/server.py --reload --log-level debug
 ```
 
 For testing:

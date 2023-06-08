@@ -143,11 +143,11 @@ def _startup_event():
 
 @click.command()
 @click.option('--reload', is_flag=True)
-@click.option('--debug', is_flag=True)
+@click.option('--log-level', type=str, default='info')
 @click.option('--workers', type=int, default=1)
 @click.option('--port', type=int, default=8000)
 @click.option('--host', type=str, default='0.0.0.0')
-def cli(reload: bool, debug: bool, workers: int, port: int, host: str):
+def cli(reload: bool, log_level: str, workers: int, port: int, host: str):
     """ Start the larch server.
     You can pass larch config via environemental variables.
 
@@ -162,7 +162,7 @@ def cli(reload: bool, debug: bool, workers: int, port: int, host: str):
       - ENTRYPOINT_EXTRACTOR: A path to an entrypoint extractor model
     """
     uvicorn.run(
-        'larch.server:app', host=host, port=port, reload=reload, debug=debug, workers=workers)
+        'larch.server:app', host=host, port=port, reload=reload, log_level=log_level, workers=workers)
 
 
 @click.command()
