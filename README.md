@@ -53,7 +53,7 @@ LOADED_MODELS='gpt2,gpt2-xl' ENCODER_DECODER_MODEL_PATHS='{"my-encdec": "./path-
 LOADED_MODELS='' ENCODER_DECODER_MODEL_PATHS='{"my-encdec": "./path-to-model/"}' larch-server
 ```
 
-You can download VSCode plugin to interact with the server from: `Coming soon!`
+You can download VSCode plugin (vsix file) to interact with the server from [here](https://github.com/hitachi-nlp/larch-vscode/releases/download/v0.0.5/larch-0.0.5.vsix).
 
 ## Usage with Docker
 
